@@ -20,4 +20,4 @@ Repositori ini berisi artefak jawaban UTS: skema basis data, trigger dan fungsi 
 - `soal3_audit.sql` — audit trail, immutability, storno, hash
 - `soal3_rpc.sql` — fungsi `create_voucher`
 - `voucher_kas_keluar.html` — formulir voucher kas keluar
-- `prompt_log.md` — log prompt AI
+- `PROMPT AI.md` — log prompt AI
