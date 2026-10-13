@@ -9,7 +9,7 @@
 | Dosen Pengampu | Totok Dewayanto |
 | Teknologi | PostgreSQL, Supabase, HTML + JavaScript, Gemini Canvas, NotebookLM |
 
-**Demo formulir:** ((https://cherin3.github.io/UTS-PENGKODEAN-DAN-PEMROGRAMAN---D/))
+**Demo formulir:** (https://cherin3.github.io/UTS-PENGKODEAN-DAN-PEMROGRAMAN---D/voucher_kas_keluar.html)
 
 Repositori ini berisi artefak jawaban UTS: skema basis data, trigger dan fungsi SQL, formulir web, dan log prompt AI. Penjelasan lengkap setiap soal ada di lembar jawaban (PDF).
 
