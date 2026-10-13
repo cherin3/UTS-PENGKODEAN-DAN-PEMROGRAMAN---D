@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voucher Kas Keluar</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--ink:#1c2330;--mute:#667085;--line:#e3e6ec;--ok:#0f8a4b;--okbg:#e6f6ed;--bad:#c0392b;--badbg:#fdecea;--acc:#1f4fd8}
+  @media (prefers-color-scheme:dark){:root{--bg:#12161d;--card:#1a202a;--ink:#e8ecf2;--mute:#98a2b3;--line:#2b3340;--okbg:#10301f;--badbg:#3a1a17;--ok:#4cd387;--bad:#ff8a7a;--acc:#7da2ff}}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+  main{max-width:880px;margin:0 auto;padding:24px 16px 48px}
+  h1{font-size:22px;margin:0 0 4px} .sub{color:var(--mute);margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  label{display:block;font-size:12px;color:var(--mute);margin-bottom:4px}
+  input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:-1px}
+  table{width:100%;border-collapse:collapse} th{font-size:12px;color:var(--mute);text-align:left;padding:6px 6px}
+  td{padding:5px 6px;vertical-align:top} td.num input{text-align:right;font-variant-numeric:tabular-nums}
+  .scroll{overflow-x:auto}
+  button{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 14px;cursor:pointer}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .totals{display:flex;gap:24px;flex-wrap:wrap;justify-content:flex-end;font-variant-numeric:tabular-nums;margin-top:10px}
+  .totals b{display:block;font-size:18px}
+  #indicator{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;font-weight:600;margin-top:14px}
+  #indicator.ok{background:var(--okbg);color:var(--ok)} #indicator.bad{background:var(--badbg);color:var(--bad)}
+  #indicator .dot{width:10px;height:10px;border-radius:50%;background:currentColor}
+  .errors{margin:8px 0 0;padding-left:18px;color:var(--bad);font-size:13px}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:12px}
+  .row-actions{display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:8px;flex-wrap:wrap}
+  .x{padding:6px 10px;color:var(--bad)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Voucher Entri Kas Keluar</h1>
+  <p class="sub">Tombol Submit hanya aktif jika Total Debit = Total Kredit (zero-discrepancy).</p>
+
+  <section class="card">
+    <div class="grid">
+      <div><label for="trx_date">Tanggal transaksi</label><input type="date" id="trx_date"></div>
+      <div><label for="ref_no">No. bukti</label><input id="ref_no" placeholder="KK-2026-001"></div>
+      <div><label for="user">Dibuat oleh</label><input id="user" placeholder="nama pengguna"></div>
+    </div>
+    <div style="margin-top:12px"><label for="desc">Deskripsi</label><textarea id="desc" rows="2" placeholder="Pembayaran ..."></textarea></div>
+  </section>
+
+  <section class="card">
+    <div class="scroll"><table>
+      <thead><tr><th style="width:42%">Akun</th><th>Debit</th><th>Kredit</th><th></th></tr></thead>
+      <tbody id="lines"></tbody>
+    </table></div>
+    <div class="row-actions"><button id="add" type="button">+ Tambah baris</button></div>
+    <div class="totals">
+      <div>Total Debit<b id="td">0</b></div><div>Total Kredit<b id="tk">0</b></div><div>Selisih<b id="diff">0</b></div>
+    </div>
+    <div id="indicator" class="bad" role="status" aria-live="polite"><span class="dot"></span><span id="indText"></span></div>
+    <ul class="errors" id="errors"></ul>
+  </section>
+
+  <div class="row-actions" style="justify-content:flex-end">
+    <button id="reset" type="button">Reset</button>
+    <button id="submit" class="primary" type="button" disabled>Submit voucher</button>
+  </div>
+  <div class="card" id="outCard" style="display:none;margin-top:16px"><b>Hasil</b><pre id="out"></pre></div>
+</main>
+
+<script>
+/* ---- Konfigurasi Supabase (kosongkan = mode demo, payload ditampilkan saja) ---- */
+const SUPABASE_URL = "";      // https://xxxx.supabase.co
+const SUPABASE_KEY = "";      // anon key
+const ACCOUNTS = [            // idealnya diambil dari tabel chart_of_accounts
+  {id:1,code:"1-1100",name:"Kas"},{id:2,code:"1-1300",name:"Persediaan Barang Dagang"},
+  {id:3,code:"2-1100",name:"Utang Usaha"},{id:4,code:"4-1100",name:"Pendapatan Penjualan"},
+  {id:5,code:"5-1100",name:"Beban Pokok Pendapatan"},{id:6,code:"6-1100",name:"Beban Listrik"}];
+
+const $ = id => document.getElementById(id);
+const fmt = n => new Intl.NumberFormat("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+const cents = v => Math.round((parseFloat(v)||0)*100);   // hitung dalam sen: hindari galat floating point
+
+function addLine(account="",debit="",credit=""){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td><select class="acc"><option value="">— pilih akun —</option>${
+    ACCOUNTS.map(a=>`<option value="${a.id}">${a.code} · ${a.name}</option>`).join("")}</select></td>
+    <td class="num"><input class="dr" type="number" min="0" step="0.01" inputmode="decimal"></td>
+    <td class="num"><input class="cr" type="number" min="0" step="0.01" inputmode="decimal"></td>
+    <td><button class="x" type="button" title="Hapus baris">✕</button></td>`;
+  tr.querySelector(".acc").value=account; tr.querySelector(".dr").value=debit; tr.querySelector(".cr").value=credit;
+  tr.querySelector(".dr").addEventListener("input",()=>{ if(cents(tr.querySelector(".dr").value)>0) tr.querySelector(".cr").value=""; recalc(); });
+  tr.querySelector(".cr").addEventListener("input",()=>{ if(cents(tr.querySelector(".cr").value)>0) tr.querySelector(".dr").value=""; recalc(); });
+  tr.querySelector(".acc").addEventListener("change",recalc);
+  tr.querySelector(".x").addEventListener("click",()=>{ tr.remove(); recalc(); });
+  $("lines").appendChild(tr);
+}
+function readLines(){
+  return [...$("lines").children].map(tr=>({
+    account_id: tr.querySelector(".acc").value ? +tr.querySelector(".acc").value : null,
+    debit: cents(tr.querySelector(".dr").value)/100, credit: cents(tr.querySelector(".cr").value)/100}));
+}
+function recalc(){
+  const L=readLines(), td=L.reduce((s,l)=>s+Math.round(l.debit*100),0), tk=L.reduce((s,l)=>s+Math.round(l.credit*100),0);
+  $("td").textContent=fmt(td/100); $("tk").textContent=fmt(tk/100); $("diff").textContent=fmt(Math.abs(td-tk)/100);
+  const used=L.filter(l=>l.debit>0||l.credit>0), errs=[];
+  if(used.length<2) errs.push("Minimal 2 baris terisi.");
+  if(used.some(l=>!l.account_id)) errs.push("Setiap baris bernominal harus punya akun.");
+  if(td===0) errs.push("Total belum boleh nol.");
+  if(!$("ref_no").value.trim()) errs.push("No. bukti wajib diisi.");
+  if(!$("user").value.trim()) errs.push("Nama pembuat wajib diisi.");
+  if(!$("trx_date").value) errs.push("Tanggal wajib diisi.");
+  const balanced = td===tk && td>0;
+  $("indicator").className = balanced?"ok":"bad";
+  $("indText").textContent = balanced ? "SEIMBANG — Debit = Kredit" : (td===tk ? "Belum ada nominal" : `TIDAK SEIMBANG — selisih ${fmt(Math.abs(td-tk)/100)}`);
+  $("errors").innerHTML = errs.map(e=>`<li>${e}</li>`).join("");
+  $("submit").disabled = !(balanced && errs.length===0);
+}
+async function submit(){
+  const lines=readLines().filter(l=>l.debit>0||l.credit>0);
+  const payload={p_date:$("trx_date").value,p_ref:$("ref_no").value.trim(),p_desc:$("desc").value.trim(),p_user:$("user").value.trim(),p_lines:lines};
+  $("outCard").style.display="block";
+  if(!SUPABASE_URL){ $("out").textContent="MODE DEMO (Supabase belum dikonfigurasi). Payload untuk rpc('create_voucher'):\n"+JSON.stringify(payload,null,2); return; }
+  $("submit").disabled=true;
+  try{
+    const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_voucher`,{method:"POST",
+      headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${SUPABASE_KEY}`,"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    $("out").textContent=JSON.stringify(await r.json(),null,2);
+  }catch(e){ $("out").textContent="Gagal: "+e.message; }
+  recalc();
+}
+function reset(){ $("lines").innerHTML=""; ["ref_no","desc"].forEach(i=>$(i).value="");
+  $("trx_date").value=new Date().toISOString().slice(0,10);
+  addLine("6","",""); addLine("1","",""); $("outCard").style.display="none"; recalc(); }
+$("add").onclick=()=>{addLine();recalc();}; $("reset").onclick=reset; $("submit").onclick=submit;
+["ref_no","user","trx_date","desc"].forEach(i=>$(i).addEventListener("input",recalc));
+reset();
+</script>
+</body>
+</html>
